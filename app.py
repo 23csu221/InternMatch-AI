@@ -284,6 +284,154 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# ---------- Supabase account + cloud storage ----------
+SUPABASE_READY = False
+SUPABASE_CLIENT = None
+SUPABASE_IMPORT_ERROR = ""
+try:
+    from supabase import create_client
+    SUPABASE_URL = str(st.secrets.get("SUPABASE_URL", "")).strip()
+    SUPABASE_ANON_KEY = str(st.secrets.get("SUPABASE_ANON_KEY", "")).strip()
+    if SUPABASE_URL and SUPABASE_ANON_KEY:
+        SUPABASE_CLIENT = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        SUPABASE_READY = True
+except Exception as exc:
+    SUPABASE_IMPORT_ERROR = str(exc)
+
+if not SUPABASE_READY:
+    st.error("Supabase is not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY to your Streamlit secrets, and install the supabase package.")
+    if SUPABASE_IMPORT_ERROR:
+        st.caption(f"Setup detail: {SUPABASE_IMPORT_ERROR}")
+    st.stop()
+
+def _set_supabase_session():
+    access = st.session_state.get("_sb_access_token")
+    refresh = st.session_state.get("_sb_refresh_token")
+    if access and refresh:
+        try:
+            SUPABASE_CLIENT.auth.set_session(access, refresh)
+            return True
+        except Exception:
+            try:
+                refreshed = SUPABASE_CLIENT.auth.refresh_session(refresh)
+                sess = getattr(refreshed, "session", None)
+                if sess:
+                    st.session_state["_sb_access_token"] = sess.access_token
+                    st.session_state["_sb_refresh_token"] = sess.refresh_token
+                    SUPABASE_CLIENT.auth.set_session(sess.access_token, sess.refresh_token)
+                    return True
+            except Exception:
+                pass
+    return False
+
+def _cloud_load(user_id: str) -> dict:
+    result = SUPABASE_CLIENT.table("user_workspace").select("workspace").eq("user_id", user_id).maybe_single().execute()
+    row = getattr(result, "data", None)
+    if isinstance(row, dict) and isinstance(row.get("workspace"), dict):
+        return row["workspace"]
+    return {}
+
+def _cloud_save():
+    user_id = st.session_state.get("_sb_user_id")
+    if not user_id:
+        return
+    payload = {
+        "profile": st.session_state.get("profile", {}),
+        "feedback": st.session_state.get("feedback", {}),
+        "saved_jobs": st.session_state.get("saved_jobs", []),
+        "applications": st.session_state.get("applications", []),
+        "internship_alerts": st.session_state.get("internship_alerts", {}),
+    }
+    SUPABASE_CLIENT.table("user_workspace").upsert(
+        {"user_id": user_id, "workspace": payload}, on_conflict="user_id"
+    ).execute()
+
+def _reset_workspace_state():
+    for key in [
+        "profile", "feedback", "saved_jobs", "applications", "internship_alerts",
+        "jobs", "selected_job", "resume_job", "interview_job", "skillgap_job",
+        "insights_job", "page", "search_total", "search_query", "search_location",
+    ]:
+        st.session_state.pop(key, None)
+
+def _auth_screen():
+    st.markdown('<div class="eyebrow">WELCOME TO INTERNMATCH AI</div>', unsafe_allow_html=True)
+    st.markdown('<h1 class="hero-title">Your career workspace, saved securely.</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="hero-copy">Create an account or log in to access your profile, saved internships and application tracker from any device.</div>', unsafe_allow_html=True)
+    login_tab, signup_tab = st.tabs(["Log in", "Create account"])
+    with login_tab:
+        with st.form("supabase_login"):
+            email = st.text_input("Email address", key="login_email")
+            password = st.text_input("Password", type="password", key="login_password")
+            submitted = st.form_submit_button("Log in", use_container_width=True)
+        if submitted:
+            try:
+                result = SUPABASE_CLIENT.auth.sign_in_with_password({"email": email.strip(), "password": password})
+                sess = getattr(result, "session", None)
+                user = getattr(result, "user", None)
+                if sess and user:
+                    _reset_workspace_state()
+                    st.session_state["_sb_access_token"] = sess.access_token
+                    st.session_state["_sb_refresh_token"] = sess.refresh_token
+                    st.session_state["_sb_user_id"] = user.id
+                    st.session_state["_sb_email"] = user.email or email.strip()
+                    st.rerun()
+                st.error("Login did not return an active session. Check your email confirmation settings.")
+            except Exception as exc:
+                st.error(f"Could not log in: {exc}")
+    with signup_tab:
+        with st.form("supabase_signup"):
+            new_email = st.text_input("Email address", key="signup_email")
+            new_password = st.text_input("Create a password (at least 8 characters)", type="password", key="signup_password")
+            confirm_password = st.text_input("Confirm password", type="password", key="signup_confirm")
+            created = st.form_submit_button("Create account", use_container_width=True)
+        if created:
+            if len(new_password) < 8:
+                st.error("Please use a password with at least 8 characters.")
+            elif new_password != confirm_password:
+                st.error("The passwords do not match.")
+            else:
+                try:
+                    result = SUPABASE_CLIENT.auth.sign_up({"email": new_email.strip(), "password": new_password})
+                    sess = getattr(result, "session", None)
+                    user = getattr(result, "user", None)
+                    if sess and user:
+                        _reset_workspace_state()
+                        st.session_state["_sb_access_token"] = sess.access_token
+                        st.session_state["_sb_refresh_token"] = sess.refresh_token
+                        st.session_state["_sb_user_id"] = user.id
+                        st.session_state["_sb_email"] = user.email or new_email.strip()
+                        st.rerun()
+                    st.success("Account created. Check your email for the confirmation link, then return here and log in.")
+                except Exception as exc:
+                    st.error(f"Could not create account: {exc}")
+
+def _logout():
+    try:
+        SUPABASE_CLIENT.auth.sign_out()
+    except Exception:
+        pass
+    for key in ["_sb_access_token", "_sb_refresh_token", "_sb_user_id", "_sb_email", "_cloud_workspace", "_cloud_workspace_loaded"]:
+        st.session_state.pop(key, None)
+    _reset_workspace_state()
+    st.rerun()
+
+_has_session = _set_supabase_session()
+if not _has_session or not st.session_state.get("_sb_user_id"):
+    _auth_screen()
+    st.stop()
+
+try:
+    # Confirm the current token still belongs to an active Supabase user.
+    _cloud_workspace = _cloud_load(st.session_state["_sb_user_id"])
+    st.session_state["_cloud_workspace"] = _cloud_workspace
+except Exception as exc:
+    st.error(f"Could not load your cloud workspace: {exc}")
+    st.info("Check that the user_workspace table and its Row Level Security policies have been created in Supabase.")
+    st.stop()
+
+
 # ---------- Persistence ----------
 def read_json(path: Path, default: Any) -> Any:
     try:
@@ -295,6 +443,23 @@ def read_json(path: Path, default: Any) -> Any:
 
 
 def write_json(path: Path, value: Any) -> None:
+    # Keep the existing app's save calls, but route their data to the signed-in
+    # user's private Supabase workspace instead of relying on ephemeral files.
+    key_by_file = {
+        ".internmatch_profile.json": "profile",
+        ".internmatch_feedback.json": "feedback",
+        ".internmatch_saved_jobs.json": "saved_jobs",
+        ".internmatch_applications.json": "applications",
+        ".internmatch_alerts.json": "internship_alerts",
+    }
+    cloud_key = key_by_file.get(path.name)
+    if cloud_key and st.session_state.get("_sb_user_id"):
+        st.session_state.setdefault("_cloud_workspace", {})[cloud_key] = value
+        try:
+            _cloud_save()
+        except Exception as exc:
+            st.error(f"Could not save to your Supabase account: {exc}")
+        return
     try:
         path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as exc:
@@ -322,7 +487,8 @@ DEFAULT_PROFILE = {
 }
 
 if "profile" not in st.session_state:
-    stored_profile = read_json(PROFILE_PATH, {})
+    cloud_data = st.session_state.get("_cloud_workspace", {})
+    stored_profile = cloud_data.get("profile") or read_json(PROFILE_PATH, {})
     st.session_state.profile = {**DEFAULT_PROFILE, **stored_profile}
 if "jobs" not in st.session_state:
     st.session_state.jobs = []
@@ -331,13 +497,13 @@ if "selected_job" not in st.session_state:
 if "resume_job" not in st.session_state:
     st.session_state.resume_job = None
 if "feedback" not in st.session_state:
-    st.session_state.feedback = read_json(FEEDBACK_PATH, {})
+    st.session_state.feedback = cloud_data.get("feedback", read_json(FEEDBACK_PATH, {}))
 if "saved_jobs" not in st.session_state:
-    st.session_state.saved_jobs = read_json(BASE_DIR / ".internmatch_saved_jobs.json", [])
+    st.session_state.saved_jobs = cloud_data.get("saved_jobs", read_json(BASE_DIR / ".internmatch_saved_jobs.json", []))
 if "applications" not in st.session_state:
-    st.session_state.applications = read_json(APPLICATIONS_PATH, [])
+    st.session_state.applications = cloud_data.get("applications", read_json(APPLICATIONS_PATH, []))
 if "internship_alerts" not in st.session_state:
-    st.session_state.internship_alerts = read_json(ALERTS_PATH, {"keywords": "", "location": "", "known_job_keys": [], "new_jobs": [], "last_checked": ""})
+    st.session_state.internship_alerts = cloud_data.get("internship_alerts", read_json(ALERTS_PATH, {"keywords": "", "location": "", "known_job_keys": [], "new_jobs": [], "last_checked": ""}))
 if "interview_job" not in st.session_state:
     st.session_state.interview_job = None
 if "skillgap_job" not in st.session_state:
@@ -877,7 +1043,9 @@ with st.sidebar:
         f"<div style='color:#FFFFFF;font-size:.9rem;margin-top:7px'>{'● Profile ready' if profile_complete else '○ Profile needs details'}</div>",
         unsafe_allow_html=True,
     )
-    st.caption("Your profile is stored locally on this computer.")
+    st.caption(f"Signed in as {st.session_state.get('_sb_email', 'your account')}. Your workspace is saved to Supabase.")
+    if st.button("Log out", key="account_logout", use_container_width=True):
+        _logout()
     st.markdown("<hr style='border-color:#315342'>", unsafe_allow_html=True)
     st.markdown("<div style='color:#AFC8B8;font-size:.72rem;font-weight:700;letter-spacing:.12em'>DATA CONNECTION</div>", unsafe_allow_html=True)
     if get_api_key():
