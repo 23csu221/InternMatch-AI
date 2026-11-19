@@ -253,20 +253,27 @@ st.markdown(
     [data-testid="stProgressBar"] > div > div { background:#087443 !important; }
     button[data-baseweb="tab"] { color:#65736A !important; font-weight:700 !important; }
 
-    /* Brown, always-visible authentication mode buttons. */
-    .st-key-auth_mode_buttons [data-testid="stButton"] button {
-        background:#8B5E3C !important;
-        color:#FFFFFF !important;
-        -webkit-text-fill-color:#FFFFFF !important;
-        border:1px solid #8B5E3C !important;
-        border-radius:9px !important;
+    /* Compact authentication selector: charcoal text, no oversized buttons. */
+    .st-key-auth_mode_selector [data-testid="stRadio"] > div {
+        gap:1.4rem !important;
+    }
+    .st-key-auth_mode_selector [data-testid="stRadio"] label {
+        color:#292929 !important;
         font-weight:700 !important;
         opacity:1 !important;
-        min-height:2.7rem !important;
     }
-    .st-key-auth_mode_buttons [data-testid="stButton"] button:hover {
-        background:#70482E !important;
-        border-color:#70482E !important;
+    .st-key-auth_mode_selector [data-testid="stRadio"] label p {
+        color:#292929 !important;
+        -webkit-text-fill-color:#292929 !important;
+        opacity:1 !important;
+    }
+    .st-key-auth_mode_selector [data-testid="stRadio"] input:checked + div {
+        background-color:#292929 !important;
+        border-color:#292929 !important;
+    }
+    .st-key-auth_mode_selector [data-testid="stRadio"] input:checked + div svg {
+        color:#292929 !important;
+        fill:#292929 !important;
     }
     hr { border-color:#E2E9E4 !important; }
     [data-testid="stAlert"] { border-radius:10px; }
@@ -375,21 +382,17 @@ def _auth_screen():
     st.markdown('<h1 class="hero-title">Your career workspace, saved securely.</h1>', unsafe_allow_html=True)
     st.markdown('<div class="hero-copy">Create an account or log in to access your profile, saved internships and application tracker from any device.</div>', unsafe_allow_html=True)
 
-    # Use ordinary Streamlit buttons instead of st.tabs: this avoids the
-    # low-contrast inactive-tab rendering seen in some browser/theme versions.
-    if "_auth_mode" not in st.session_state:
-        st.session_state["_auth_mode"] = "login"
+    # Compact horizontal selector instead of large buttons or low-contrast tabs.
+    with st.container(key="auth_mode_selector"):
+        auth_mode = st.radio(
+            "Account access",
+            ["Log in", "Create account"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="_auth_mode_choice",
+        )
 
-    with st.container(key="auth_mode_buttons"):
-        mode_login, mode_signup = st.columns(2)
-        with mode_login:
-            if st.button("Log in", key="auth_choose_login", use_container_width=True):
-                st.session_state["_auth_mode"] = "login"
-        with mode_signup:
-            if st.button("Create account", key="auth_choose_signup", use_container_width=True):
-                st.session_state["_auth_mode"] = "signup"
-
-    if st.session_state["_auth_mode"] == "login":
+    if auth_mode == "Log in":
         with st.form("supabase_login"):
             email = st.text_input("Email address", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
