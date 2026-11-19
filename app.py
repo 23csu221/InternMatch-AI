@@ -252,7 +252,16 @@ st.markdown(
     /* Progress and tabs */
     [data-testid="stProgressBar"] > div > div { background:#087443 !important; }
     button[data-baseweb="tab"] { color:#65736A !important; font-weight:700 !important; }
-    button[data-baseweb="tab"][aria-selected="true"] { color:#087443 !important; }
+    button[data-baseweb="tab"]:not([aria-selected="true"]),
+    button[data-baseweb="tab"]:not([aria-selected="true"]) * {
+        color:#8B5E3C !important;
+        -webkit-text-fill-color:#8B5E3C !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"],
+    button[data-baseweb="tab"][aria-selected="true"] * {
+        color:#087443 !important;
+        -webkit-text-fill-color:#087443 !important;
+    }
     hr { border-color:#E2E9E4 !important; }
     [data-testid="stAlert"] { border-radius:10px; }
     footer { visibility:hidden; }
