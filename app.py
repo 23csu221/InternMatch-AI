@@ -253,33 +253,20 @@ st.markdown(
     [data-testid="stProgressBar"] > div > div { background:#087443 !important; }
     button[data-baseweb="tab"] { color:#65736A !important; font-weight:700 !important; }
 
-    /* Authentication tabs: keep both options readable when switching. */
-    [data-testid="stTabs"] button[data-baseweb="tab"] {
-        color:#8B5E3C !important;
-        -webkit-text-fill-color:#8B5E3C !important;
+    /* Brown, always-visible authentication mode buttons. */
+    .st-key-auth_mode_buttons [data-testid="stButton"] button {
+        background:#8B5E3C !important;
+        color:#FFFFFF !important;
+        -webkit-text-fill-color:#FFFFFF !important;
+        border:1px solid #8B5E3C !important;
+        border-radius:9px !important;
         font-weight:700 !important;
         opacity:1 !important;
-        background:transparent !important;
-        border-radius:8px 8px 0 0 !important;
+        min-height:2.7rem !important;
     }
-    [data-testid="stTabs"] button[data-baseweb="tab"] *,
-    [data-testid="stTabs"] button[data-baseweb="tab"] p {
-        color:#8B5E3C !important;
-        -webkit-text-fill-color:#8B5E3C !important;
-        opacity:1 !important;
-    }
-    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
-        color:#FFFFFF !important;
-        -webkit-text-fill-color:#FFFFFF !important;
-        background:#8B5E3C !important;
-    }
-    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] *,
-    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] p {
-        color:#FFFFFF !important;
-        -webkit-text-fill-color:#FFFFFF !important;
-    }
-    [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
-        background-color:#8B5E3C !important;
+    .st-key-auth_mode_buttons [data-testid="stButton"] button:hover {
+        background:#70482E !important;
+        border-color:#70482E !important;
     }
     hr { border-color:#E2E9E4 !important; }
     [data-testid="stAlert"] { border-radius:10px; }
@@ -387,8 +374,22 @@ def _auth_screen():
     st.markdown('<div class="eyebrow">WELCOME TO INTERNMATCH AI</div>', unsafe_allow_html=True)
     st.markdown('<h1 class="hero-title">Your career workspace, saved securely.</h1>', unsafe_allow_html=True)
     st.markdown('<div class="hero-copy">Create an account or log in to access your profile, saved internships and application tracker from any device.</div>', unsafe_allow_html=True)
-    login_tab, signup_tab = st.tabs(["Log in", "Create account"])
-    with login_tab:
+
+    # Use ordinary Streamlit buttons instead of st.tabs: this avoids the
+    # low-contrast inactive-tab rendering seen in some browser/theme versions.
+    if "_auth_mode" not in st.session_state:
+        st.session_state["_auth_mode"] = "login"
+
+    with st.container(key="auth_mode_buttons"):
+        mode_login, mode_signup = st.columns(2)
+        with mode_login:
+            if st.button("Log in", key="auth_choose_login", use_container_width=True):
+                st.session_state["_auth_mode"] = "login"
+        with mode_signup:
+            if st.button("Create account", key="auth_choose_signup", use_container_width=True):
+                st.session_state["_auth_mode"] = "signup"
+
+    if st.session_state["_auth_mode"] == "login":
         with st.form("supabase_login"):
             email = st.text_input("Email address", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
@@ -408,7 +409,7 @@ def _auth_screen():
                 st.error("Login did not return an active session. Check your email confirmation settings.")
             except Exception as exc:
                 st.error(f"Could not log in: {exc}")
-    with signup_tab:
+    else:
         with st.form("supabase_signup"):
             new_email = st.text_input("Email address", key="signup_email")
             new_password = st.text_input("Create a password (at least 8 characters)", type="password", key="signup_password")
