@@ -252,15 +252,34 @@ st.markdown(
     /* Progress and tabs */
     [data-testid="stProgressBar"] > div > div { background:#087443 !important; }
     button[data-baseweb="tab"] { color:#65736A !important; font-weight:700 !important; }
-    button[data-baseweb="tab"]:not([aria-selected="true"]),
-    button[data-baseweb="tab"]:not([aria-selected="true"]) * {
+
+    /* Authentication tabs: keep both options readable when switching. */
+    [data-testid="stTabs"] button[data-baseweb="tab"] {
         color:#8B5E3C !important;
         -webkit-text-fill-color:#8B5E3C !important;
+        font-weight:700 !important;
+        opacity:1 !important;
+        background:transparent !important;
+        border-radius:8px 8px 0 0 !important;
     }
-    button[data-baseweb="tab"][aria-selected="true"],
-    button[data-baseweb="tab"][aria-selected="true"] * {
-        color:#087443 !important;
-        -webkit-text-fill-color:#087443 !important;
+    [data-testid="stTabs"] button[data-baseweb="tab"] *,
+    [data-testid="stTabs"] button[data-baseweb="tab"] p {
+        color:#8B5E3C !important;
+        -webkit-text-fill-color:#8B5E3C !important;
+        opacity:1 !important;
+    }
+    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+        color:#FFFFFF !important;
+        -webkit-text-fill-color:#FFFFFF !important;
+        background:#8B5E3C !important;
+    }
+    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] *,
+    [data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] p {
+        color:#FFFFFF !important;
+        -webkit-text-fill-color:#FFFFFF !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+        background-color:#8B5E3C !important;
     }
     hr { border-color:#E2E9E4 !important; }
     [data-testid="stAlert"] { border-radius:10px; }
